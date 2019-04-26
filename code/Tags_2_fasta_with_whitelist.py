@@ -19,7 +19,8 @@ def fasta_maka(whitey, cat, out = None):
     import sys
     import gzip
     
-    if whitey is str:
+    
+    if isinstance(whitey, str):
         loci = open(whitey, 'r').readlines()
     elif isinstance(whitey, (list, set)):
         loci = whitey
@@ -39,7 +40,7 @@ def fasta_maka(whitey, cat, out = None):
             Loc_id = locus.split("_")[1]
         else:
             Loc_id = locus.split("_")[0]
-        Loc_IDs.append(Loc_id)
+        Loc_IDs.append(Loc_id.strip())
     
     print "Number of tags in whitelist:",len(Loc_IDs)
 
