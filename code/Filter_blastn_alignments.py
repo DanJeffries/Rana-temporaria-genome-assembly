@@ -326,7 +326,7 @@ def Filter_haplotig_alignments(kept_alignments, log_handle, discarded):
 
 
 
-def Filter_alignments(alignments_path):
+def Filter_alignments(alignments_path, output_discards = False):
 
        
     """
@@ -341,13 +341,16 @@ def Filter_alignments(alignments_path):
     
     USAGE:
          
-         Filter_alignments /full/path/to/alignments.xml
+         Filter_alignments </full/path/to/alignments.xml>  [True/False]
+
+         1st Argument is the full path to the alignments in xml format
+         2nd Argument specifies whether or not to output the discarded alignments (Default: False)
          
     NOTE* Alignments must be in xml format (use the option -outfmt 5 in blastn.)
     
     OUTPUT:
     
-         Will output a table of the retained alignment positions
+         Will output a table of the retained alignment positions and a verbose log file
     
     """
     
@@ -381,9 +384,12 @@ def Filter_alignments(alignments_path):
         pos = my_kept_multi_alignments[marker]["STRT_POS"]
         filtered_alignments.write("%s\t%s\t%s\t \n" % (marker, scaff, pos))
         
-    for marker in discarded_2nd_step:
-        reason = discarded_2nd_step[marker]
-        filtered_alignments.write("%s\tNA\tNA\t%s\n" % (marker, reason))
+    
+    if output_discards in ["True", "T", "t"]:
+        
+        for marker in discarded_2nd_step:
+            reason = discarded_2nd_step[marker]
+            filtered_alignments.write("%s\tNA\tNA\t%s\n" % (marker, reason))
 
     filtered_alignments.close()
     my_log_handle.close()
@@ -408,8 +414,14 @@ import os.path
 if len(sys.argv) < 2:
     sys.exit(Filter_alignments.__doc__)
 
-if os.path.isfile(sys.argv[1]) :
-    Filter_alignments(sys.argv[1])
+if os.path.isfile(sys.argv[1]):
+    
+    if len(sys.argv) == 3:
+
+        Filter_alignments(sys.argv[1], sys.argv[2])
+    else:
+        
+        Filter_alignments(sys.argv[1])
     
 else:
     sys.exit("File doesn't exist")
