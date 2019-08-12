@@ -9,8 +9,10 @@ def summarise_alignments(alignments_path, log_handle):
     logfile = log_handle
     logfile.write("\nAlignments parsed, summarising hits, filtering no-hit and multi-good-hit markers . . . \n")
     
+    print "\nOk! Lets do this . . . \n" 
+    print "Filtering out markers with no-hits or too many (3+) good hits"
     
-    print "\n### Summarising hits . . . "
+    print "\n### Summarising . . . "
     
     unique_alignments = []
     two_alignments_only = []
@@ -23,6 +25,8 @@ def summarise_alignments(alignments_path, log_handle):
     dict_to_keep = {}
     dict_to_keep["One_good_hit"] = []
     dict_to_keep["Two_good_hits"] = []
+    
+    discarded = {}
     
     eval_diff_thresh = 1e-5
     
@@ -38,6 +42,9 @@ def summarise_alignments(alignments_path, log_handle):
             
                 unique_alignments.append(record.query)
                 dict_to_keep["One_good_hit"].append(record)
+                
+            else:
+                discarded[record.query] = "No hits with e-val < 1e-20"
             
             
         elif len(record.alignments) == 2:
@@ -57,6 +64,9 @@ def summarise_alignments(alignments_path, log_handle):
                     one_best_alignment.append(record.query)
                     dict_to_keep["One_good_hit"].append(record)
                     
+            else:
+                discarded[record.query] = "No hits with e-val < 1e-20"
+                    
                     
                     
         elif len(record.alignments) >= 3:
@@ -73,7 +83,8 @@ def summarise_alignments(alignments_path, log_handle):
                         record.alignments[1].hsps[0].expect >= eval_diff_thresh*record.alignments[2].hsps[0].expect]):
                     
                         more_than_two_best.append(record.query)
-                           
+                        discarded[record.query] = "Three or more hits with e-val < 1e-20"
+                    
                     else:
                            
                         two_best_alignments.append(record.query)
@@ -83,7 +94,13 @@ def summarise_alignments(alignments_path, log_handle):
                     
                     one_best_alignment.append(record.query)
                     dict_to_keep["One_good_hit"].append(record)
-                    
+            
+            else:
+                discarded[record.query] = "No hits with e-val < 1e-20"
+        
+        else:
+            discarded[record.query] = "No hits"
+        
         
        
     logfile.write("Total alignments %s\n" % alignment_counter)
@@ -96,24 +113,21 @@ def summarise_alignments(alignments_path, log_handle):
     logfile.write("More_than_two_best %s\n" % len(more_than_two_best))
     
     
-    print "\nTotal alignments:", alignment_counter
-    print "Tags with no hits:", (alignment_counter-(len(unique_alignments) + len(two_alignments_only) + len(multi_alignments)))
-    print "\nUnique_alignments:", len(unique_alignments)
-    print "Two_alignments_only:", len(two_alignments_only)
-    print "Multi_alignments:", len(multi_alignments)
+    print "\n    Total alignments:", alignment_counter
+    print "    Tags with no hits:", (alignment_counter-(len(unique_alignments) + len(two_alignments_only) + len(multi_alignments)))
+    print "\n    Unique_alignments:", len(unique_alignments)
+    print "    Two_alignments_only:", len(two_alignments_only)
+    print "    Multi_alignments:", len(multi_alignments)
 
-    print "\nOne_best_alignment:", len(one_best_alignment)
-    print "Two_best_alignments:", len(two_best_alignments)
-    print "More_than_two_best:", len(more_than_two_best)
+    print "\n    One_best_alignment:", len(one_best_alignment)
+    print "    Two_best_alignments:", len(two_best_alignments)
+    print "    More_than_two_best:", len(more_than_two_best)
     
-    print "\nRetained only 'Unique' and  'One-best-hit' alignments. 'Two-best-hit' alignments \npassed to haplotig filtering"
     
-    return dict_to_keep, alignment_counter, (len(unique_alignments) + len(one_best_alignment))
+    return dict_to_keep, alignment_counter, (len(unique_alignments) + len(one_best_alignment)), discarded
 
 
-
-
-def Filter_haplotig_alignments(kept_alignments, log_handle):
+def Filter_haplotig_alignments(kept_alignments, log_handle, discarded):
 
     confirmed_pair = 0
     anchored_retained = 0
@@ -129,8 +143,7 @@ def Filter_haplotig_alignments(kept_alignments, log_handle):
     
     kept_multi_alignments = {}
     
-    print "\n### Haplotig filtering ###\n\nTrying to rescue %s two-hit alignments\n" % len(kept_alignments["Two_good_hits"])
-    
+        
     for alignment in kept_alignments["Two_good_hits"]:
 
         total_alignments += 1
@@ -181,7 +194,8 @@ def Filter_haplotig_alignments(kept_alignments, log_handle):
                         
                         
                     else:
-                        logfile.write("NO PAIR: Haplotig alignment does not match the anchroed alignment position\n")
+                        logfile.write("NO PAIR: Haplotig alignment does not match the anchored alignment position\n")
+                        discarded[alignment.query] = "Two good hits but haplotig alignment does not match the anchored alignment position"
                         no_pair_mismatch += 1
 
                 else:
@@ -216,6 +230,7 @@ def Filter_haplotig_alignments(kept_alignments, log_handle):
                         
                     else:
                         logfile.write("NO PAIR: Haplotig alignment does not match the anchroed alignment position\n")
+                        discarded[alignment.query] = "Two good hits but haplotig alignment does not match the anchroed alignment position"
                         no_pair_mismatch += 1
                 else:
                     logfile.write("NO PAIR: Haplotig hit does not match the chromosome-anchored hit\n")
@@ -251,6 +266,7 @@ def Filter_haplotig_alignments(kept_alignments, log_handle):
                         
                 else:
                     logfile.write("NO PAIR: Haplotig hit does not match the primary scaffold hit\n")
+                    discarded[alignment.query] = "Two good hits but haplotig hit does not match the primary scaffold hit"
                     no_pair_mismatch += 1
             
                     
@@ -279,35 +295,34 @@ def Filter_haplotig_alignments(kept_alignments, log_handle):
                         
                 else:
                     logfile.write("NO PAIR: Haplotig hit does not match the primary scaffold hit\n")
+                    discarded[alignment.query] = "Two good hits but haplotig hit does not match the primary scaffold hit"
                     no_pair_mismatch += 1
     
             
             
             else:
-                logfile.write("NO PAIR: Missing anchored alignments\n")
+                logfile.write("NO PAIR: Missing anchored or primary scaffold alignments\n")
+                discarded[alignment.query] = "Two good hits but neither is an anchored or primary scaffold"
                 no_pair_no_anchored += 1
         else:
             no_pair_no_haps += 1
             logfile.write("NO PAIR: No haplotigs hit\n")
+            discarded[alignment.query] = "Two good hits but neither is a known haplotig"
 
     logfile.write("\n### HAPLOTIG FILTERING SUMMARY ###\n")
-    logfile.write("\nConfirmed alignment pairs: %s\n" % confirmed_pair)
-    logfile.write("(Anchored: %s, Unanchored: %s)" % (anchored_retained, unanchored_retained))
-    logfile.write("Pairs discarded due to no haplotig hit: %s\n" % no_pair_no_haps)
-    logfile.write("Pairs discarded due to no anchored hit: %s\n" % no_pair_no_anchored)
+    logfile.write("Pairs discarded due to no haplotigs hit: %s\n" % no_pair_no_haps)
+    logfile.write("Pairs discarded due to no anchored or primary scaffold hit: %s\n" % no_pair_no_anchored)
     logfile.write("Pairs discarded due to mismatch between haplotig and anchored alignment: %s\n" % no_pair_mismatch )
     logfile.write("Total two-hit alignments processed: %s\n" % total_alignments)
+    logfile.write("Number of two-hit alignments rescued: %s (Anchored: %s, Unanchored: %s)\n" % (confirmed_pair, anchored_retained, unanchored_retained))
+ 
+    print "    Pairs discarded due to no haplotigs hit: %s" % no_pair_no_haps
+    print "    Pairs discarded due to no anchored hit: %s" % no_pair_no_anchored
+    print "    Pairs discarded due to mismatch between haplotig and anchored alignment: %s" % no_pair_mismatch 
+    print "    Total two-hit alignments processed: %s" % total_alignments
+    print "\n    Number of two-hit alignments rescued: %s (Anchored: %s, Unanchored: %s)" % (confirmed_pair, anchored_retained, unanchored_retained)
     
-    print "Confirmed alignment pairs: %s" % confirmed_pair
-    print "(Anchored: %s, Unanchored: %s)" % (anchored_retained, unanchored_retained)
-    print "Pairs discarded due to no haplotig hit: %s" % no_pair_no_haps
-    print "Pairs discarded due to no anchored hit: %s" % no_pair_no_anchored
-    print "Pairs discarded due to mismatch between haplotig and anchored alignment: %s" % no_pair_mismatch 
-    print "Total two-hit alignments processed: %s" % total_alignments
-            
-        
-    return kept_multi_alignments, confirmed_pair
-
+    return kept_multi_alignments, confirmed_pair, discarded
 
 
 
@@ -339,15 +354,17 @@ def Filter_alignments(alignments_path):
     import numpy as np
     
     filtered_alignments = open("%s_filered_aligments.tsv" % alignments_path.rpartition(".")[0], 'w')
-    filtered_alignments.write("#MARKER\tCHROM\tPOS\n")
+    filtered_alignments.write("#MARKER\tCHROM\tPOS\tNOTES\n")
 
     my_log_handle = open("%s_alignment_filtering.log" % alignments_path.rpartition(".")[0], 'w')
 
     ## summarise the alignments
-    my_kept_alignments, total_alignments, retained_single = summarise_alignments(alignments_path, my_log_handle)
+    my_kept_alignments, total_alignments, retained_single, discarded_1st_step = summarise_alignments(alignments_path, my_log_handle)
 
+    print "\n### Now trying to rescue the %s two-hit alignments ###\n" % len(my_kept_alignments["Two_good_hits"])
+    
     ## Filter haplotig alignments
-    my_kept_multi_alignments, retained_two_hit = Filter_haplotig_alignments(my_kept_alignments, my_log_handle)
+    my_kept_multi_alignments, retained_two_hit, discarded_2nd_step = Filter_haplotig_alignments(my_kept_alignments, my_log_handle, discarded_1st_step)
 
     ## make the output table
 
@@ -355,27 +372,31 @@ def Filter_alignments(alignments_path):
         marker = alignment.query
         scaff = alignment.alignments[0].hit_def.split()[0]
         pos = alignment.alignments[0].hsps[0].sbjct_start
-        filtered_alignments.write("%s\t%s\t%s\n" % (marker, scaff, pos))
+        filtered_alignments.write("%s\t%s\t%s\t \n" % (marker, scaff, pos))
 
     my_log_handle.write("## FILTERING multi alignments to haplotigs\n\n")
 
     for marker in my_kept_multi_alignments:
         scaff = my_kept_multi_alignments[marker]["CHROM"]
         pos = my_kept_multi_alignments[marker]["STRT_POS"]
-        filtered_alignments.write("%s\t%s\t%s\n" % (marker, scaff, pos))
+        filtered_alignments.write("%s\t%s\t%s\t \n" % (marker, scaff, pos))
+        
+    for marker in discarded_2nd_step:
+        reason = discarded_2nd_step[marker]
+        filtered_alignments.write("%s\tNA\tNA\t%s\n" % (marker, reason))
 
     filtered_alignments.close()
     my_log_handle.close()
     
     print "\n### DONE ###"
     
-    print "\nRetained:"
-    print "\n    %s single-good-hit alignments" % retained_single
-    print "    %s haplotig alignments" % retained_two_hit
-    print "    Total = %s (%s%%)" % ((retained_single+retained_two_hit), (np.round(((retained_single+retained_two_hit)/total_alignments)*100)))
+    print "\n    Retained:"
+    print "\n        %s single-good-hit alignments" % retained_single
+    print "        %s haplotig alignments" % retained_two_hit
+    print "        Total = %s (%s%%)" % ((retained_single+retained_two_hit), (np.round(((retained_single+retained_two_hit)/total_alignments)*100)))
                                      
-    print "\nRetained alignments are here: %s" % "%s_filered_aligments.tsv" % alignments_path.rpartition(".")[0]
-    print "Log file is here: %s\n" % "%s_alignment_filtering.log" % alignments_path.rpartition(".")[0]
+    print "\n    Retained alignments are here: %s" % "%s_filered_aligments.tsv" % alignments_path.rpartition(".")[0]
+    print "    Log file is here: %s" % "%s_alignment_filtering.log\n" % alignments_path.rpartition(".")[0]
 
 
 ### CLINE usage
@@ -392,3 +413,5 @@ if os.path.isfile(sys.argv[1]) :
     
 else:
     sys.exit("File doesn't exist")
+
+
